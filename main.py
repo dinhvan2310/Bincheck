@@ -102,7 +102,7 @@ async def main():
     logger.warning(f'File đọc dữ liệu: {config["file_path"]}')
     logger.warning(f'File lưu dữ liệu: {config["output_file_path"]}')
     logger.warning(f'Load {len(proxies)} proxies')
-    logger.warning(f'Số luồng: {len(proxies)}')
+    logger.warning(f'Số luồng: {config['num_of_threads']}')
     logger.warning(
         f'Kiểm tra từ dòng {config["offset"]} đến dòng {config["offset"] + config["limit"]}')
 

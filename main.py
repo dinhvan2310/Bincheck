@@ -68,7 +68,6 @@ async def check_data(
                         'Host': 'purchasealerts.visa.com',
                         'Origin': 'https://purchasealerts.visa.com',
                         'Referer': 'https://purchasealerts.visa.com/vca-web/check',
-                        'Sec-CH-UA': '"Chromium";v="134", "Not:A-Brand";v="24", "Microsoft Edge";v="134"',
                         'Sec-CH-UA-Mobile': '?0',
                         'Sec-CH-UA-Platform': '"Windows"',
                         'Sec-Fetch-Dest': 'empty',

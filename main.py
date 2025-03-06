@@ -42,16 +42,26 @@ async def load_proxies(
 async def check_data(
     index,
     data,
-    proxy
+    proxy,
+    proxies
 ):
+    if (len(proxies) == 0):
+        logger.error('Hết proxy để sử dụng')
+        for i in range(int(config['retry_after']) * 60):
+            logger.info(
+                f'Đợi {int(config["retry_after"]) * 60 - i} giây...')
+            await asyncio.sleep(1)
+        if (len(proxies) == 0):
+            proxies = await load_proxies()
+        return await check_data(index, data, proxies[index % len(proxies)], proxies)
     BIN = data['BIN']
     url = config['url']
     proxy_user = proxy.split(':')[2]
     proxy_pass = proxy.split(':')[3]
-    proxy = proxy.split(':')[0] + ':' + proxy.split(':')[1]
+    proxy_host = proxy.split(':')[0] + ':' + proxy.split(':')[1]
     response = requests.post(url,
                     proxies={
-                        'http': f'http://{proxy_user}:{proxy_pass}@{proxy}',
+                        'http': f'http://{proxy_user}:{proxy_pass}@{proxy_host}',
                     },
                     headers={
                         'Content-Type': 'application/json',
@@ -80,13 +90,16 @@ async def check_data(
                 f'[{index - config['offset']}/{config['limit']}]: BIN {BIN} không hợp lệ, {data["errorCode"]}')
         return data['eligibility']
     elif response.status_code == 429:
-        logger.error(
-            f'Quá nhiều request, Thử lại sau {config["retry_after"]} phút')
-        for i in range(int(config['retry_after']) * 60):
-            logger.info(
-                f'Đợi {int(config["retry_after"]) * 60 - i} giây...')
-            await asyncio.sleep(1)
-        return await check_data(index, data)
+        proxies.remove(proxy)
+        logger.warning(f'Proxy {proxy} bị chặn, đang thử lại với proxy khác...')
+        return await check_data(index, data, proxies[index % len(proxies)], proxies)
+        # logger.error(
+        #     f'Quá nhiều request, Thử lại sau {config["retry_after"]} phút')
+        # for i in range(int(config['retry_after']) * 60):
+        #     logger.info(
+        #         f'Đợi {int(config["retry_after"]) * 60 - i} giây...')
+        #     await asyncio.sleep(1)
+        # return await check_data(index, data)
     elif response.status_code == 400:
         logger.warning(
             f'[{index - config['offset']}/{config['limit']}]: BIN {BIN} không hợp lệ, status code: {response.status_code}, {response.json().get("message")}')
@@ -127,7 +140,7 @@ async def main():
                 loop.run_in_executor(
                     executor,
                     asyncio.run,
-                    check_data(index, row, proxies[index % len(proxies)])
+                    check_data(index, row, proxies[index % len(proxies)], proxies)
                 )
                 for index, row in df[config['offset']:config['offset'] + config['limit']].iterrows()
             ]

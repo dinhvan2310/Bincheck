@@ -1,5 +1,6 @@
 file_path: us.json
 output_file_path: output.csv
+
 num_threads: 3
 url: https://purchasealerts.visa.com/pas/apps/7d955368-76f3-4862-410a-18d406710101/issuerOptStatus
 country_code: 840

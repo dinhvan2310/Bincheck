@@ -64,6 +64,7 @@ async def check_data(
                         'Sec-Fetch-Dest': 'empty',
                         'Sec-Fetch-Mode': 'cors',
                         'Sec-Fetch-Site': 'same-origin',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
                     }, data=json.dumps({
                         'panPrefix': f'{BIN}000',
                         'countryCode': config['country_code'],

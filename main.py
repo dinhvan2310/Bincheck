@@ -8,6 +8,14 @@ import coloredlogs
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import requests
+import threading
+
+file_lock = threading.Lock()
+
+def write_token_to_file(token):
+    with file_lock:
+        with open("log.txt", "a") as file:
+            file.write(token + "\n")
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -23,17 +31,28 @@ async def load_data(
         data = json.load(f)
     return data
 
+async def load_proxies(
+    file_path: str = 'proxies.txt'
+):
+    with open(file_path) as f:
+        data = f.read().splitlines()
+    return data
+
 
 async def check_data(
     index,
-    data
+    data,
+    proxy
 ):
     BIN = data['BIN']
     url = config['url']
+    proxy_user = proxy.split(':')[2]
+    proxy_pass = proxy.split(':')[3]
+    proxy = proxy.split(':')[0] + ':' + proxy.split(':')[1]
     response = requests.post(url,
                     proxies={
-                        'http': f'http://{config['proxy_user']}:{config['proxy_pass']}@{config['proxy']}',
-                    } if config['proxy'] else None,
+                        'http': f'http://{proxy_user}:{proxy_pass}@{proxy}',
+                    },
                     headers={
                         'Content-Type': 'application/json',
                         'Host': 'purchasealerts.visa.com',
@@ -45,7 +64,6 @@ async def check_data(
                         'Sec-Fetch-Dest': 'empty',
                         'Sec-Fetch-Mode': 'cors',
                         'Sec-Fetch-Site': 'same-origin',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
                     }, data=json.dumps({
                         'panPrefix': f'{BIN}000',
                         'countryCode': config['country_code'],
@@ -55,6 +73,7 @@ async def check_data(
         data = response.json()
         if data['eligibility'] == True:
             logger.info(f'[{index - config['offset']}/{config['limit']}]: BIN {BIN} hợp lệ')
+            write_token_to_file(str(BIN))
         else:
             logger.warning(
                 f'[{index - config['offset']}/{config['limit']}]: BIN {BIN} không hợp lệ, {data["errorCode"]}')
@@ -76,14 +95,13 @@ async def check_data(
             f'[{index - config['offset']}/{config['limit']}]: BIN {BIN} không hợp lệ, status code: {response.status_code}, {response.text}')
         return None
 
-
 async def main():
+    proxies = await load_proxies()
     logger.critical(f'Starting the program with config:')
     logger.warning(f'File đọc dữ liệu: {config["file_path"]}')
     logger.warning(f'File lưu dữ liệu: {config["output_file_path"]}')
-    logger.warning(f'Số luồng: {config["num_threads"]}')
-    logger.warning(
-        f'Proxy: {config["proxy"] if config["proxy"] else "Không có"}')
+    logger.warning(f'Load {len(proxies)} proxies')
+    logger.warning(f'Số luồng: {len(proxies)}')
     logger.warning(
         f'Kiểm tra từ dòng {config["offset"]} đến dòng {config["offset"] + config["limit"]}')
 
@@ -92,9 +110,9 @@ async def main():
 
     except Exception as e:
         data = await load_data(config['file_path'])
-        logger.info(f'Đọc dữ liệu xong, có {len(df)} dòng dữ liệu')
         df = pd.DataFrame(data)
         df = df[df['BIN'].notnull()]
+        logger.info(f'Đọc dữ liệu xong, có {len(df)} dòng dữ liệu')
         logger.warning(f'Sau khi lọc dữ liệu, còn lại {len(df)} dòng dữ liệu')
         df['is_valid'] = None
         df.to_csv(config['output_file_path'], index=False)
@@ -102,13 +120,13 @@ async def main():
 
     results = df['is_valid'].to_list()
     try:
-        with ThreadPoolExecutor(max_workers=config['num_threads']) as executor:
+        with ThreadPoolExecutor(max_workers=config['num_of_threads']) as executor:
             loop = asyncio.get_event_loop()
             futures = [
                 loop.run_in_executor(
                     executor,
                     asyncio.run,
-                    check_data(index, row)
+                    check_data(index, row, proxies[index % len(proxies)])
                 )
                 for index, row in df[config['offset']:config['offset'] + config['limit']].iterrows()
             ]
